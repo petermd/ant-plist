@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<project name="ant-plist" basedir="." default="test">
+
+    <property file="project.properties"/>
+
+    <property name="src.java" value="src/main/java"/>
+    <property name="test.java" value="src/test/java"/>
+    <property name="test.data" value="src/test/data"/>
+
+    <property name="build.test.dir" value="build/data"/>
+    <property name="build.package.dir" value="build/package"/>
+    <property name="classes.dir" value="build/classes"/>
+    <property name="report.dir"   value="build/report"/>
+    <property name="output.jar" value="build/${project.artifactId}.jar"/>
+
+    <property name="junit.out.dir.xml"  value="${report.dir}/junit/xml"/>
+    <property name="junit.out.dir.html" value="${report.dir}/junit/html"/>
+
+    <path id="classpath.build">
+	    <pathelement location="src/main/lib/dd-plist.jar"/>
+	    <pathelement location="src/test/lib/junit-4.11.jar"/>
+    </path>
+
+    <path id="classpath.run">
+        <path path="${java.class.path}"/>
+	<path refid="classpath.build"/>
+        <path location="${output.jar}"/>
+    </path>
+
+    <path id="classpath.test">
+        <path refid="classpath.run"/>
+    </path>
+
+    <!-- General -->
+
+    <target name="clean" description="Delete all generated files">
+        <delete failonerror="false" includeEmptyDirs="true">
+            <fileset dir="build"/>
+        </delete>
+    </target>
+
+    <target name="compile">
+        <mkdir dir="${classes.dir}"/>
+        <javac srcdir="${src.java}:${test.java}" destdir="${classes.dir}" includeantruntime="true">
+	     <classpath refid="classpath.build"/>
+	</javac>
+    </target>
+
+    <target name="jar" depends="compile">
+        <jar destfile="${output.jar}" basedir="${classes.dir}"/>
+    </target>
+
+    <target name="fatjar" depends="jar">
+        <mkdir dir="${build.package.dir}"/>
+        <unzip dest="${build.package.dir}">
+            <fileset dir="src/main/lib">
+                <include name="*.jar"/>
+            </fileset>
+        </unzip>
+        <jar destfile="${output.jar}">
+            <manifest>
+                <attribute name="Implementation-Title" value="${project.name}"/>
+                <attribute name="Implementation-Version" value="${project.version}"/>
+            </manifest>
+            <fileset dir="${classes.dir}"/>
+            <fileset dir="${build.package.dir}"/>
+        </jar>
+    </target>
+
+    <!-- Demo -->
+
+    <target name="use.init" depends="fatjar">
+        <taskdef name="plist" classname="petermd.ant.plist.PlistTask" classpath="${output.jar}"/>
+    </target>
+
+    <target name="use.view" depends="use.init">
+        <copy file="${test.data}/text.plist" tofile="${build.test.dir}/text.plist" overwrite="true"/>
+        <plist file="${build.test.dir}/text.plist" propertyPrefix="plist.view"/>
+    </target>
+
+    <target name="use.edit" depends="use.init">
+        <copy file="${test.data}/text.plist" tofile="${build.test.dir}/edit.plist" overwrite="true"/>
+        <plist file="${build.test.dir}/edit.plist">
+            <dict>
+                <key>first</key>
+                <string>updated-value</string>
+                <key>second</key>
+                <string>added-value</string>
+            </dict>
+        </plist>
+        <plist file="${build.test.dir}/edit.plist" propertyPrefix="plist.postedit"/>
+    </target>
+
+    <target name="use.binary" depends="use.init">
+        <copy file="${test.data}/text.plist" tofile="${build.test.dir}/binary.plist" overwrite="true"/>
+        <plist file="${build.test.dir}/binary.plist" format="binary">
+            <dict>
+                <key>first</key>
+                <string>updated-binary-value</string>
+                <key>second</key>
+                <string>added-binary-value</string>
+            </dict>
+        </plist>
+        <plist file="${build.test.dir}/binary.plist" propertyPrefix="plist.postbinary"/>
+    </target>
+
+    <target name="use.dict" depends="use.init">
+        <copy file="${test.data}/text.plist" tofile="${build.test.dir}/edit.plist" overwrite="true"/>
+        <plist file="${build.test.dir}/edit.plist">
+            <dict>
+                <key>name</key>
+            </dict>
+        </plist>
+        <plist file="${build.test.dir}/edit.plist" propertyPrefix="plist.postdict"/>
+    </target>
+
+    <target name="use.array" depends="use.init">
+        <copy file="${test.data}/mobile-info.plist" tofile="${build.test.dir}/mobile-info.plist" overwrite="true"/>
+        <plist file="${build.test.dir}/mobile-info.plist">
+            <dict>
+                <key>UIDeviceFamily</key>
+                <array>
+                    <integer>1</integer>
+                    <integer>2</integer>
+                </array>
+            </dict>
+        </plist>
+        <plist file="${build.test.dir}/mobile-info.plist" propertyPrefix="plist.postarray"/>
+    </target>
+
+
+    <!-- Unit-test -->
+
+    <target name="junit" description="Runs the unit tests" depends="fatjar">
+        <delete dir="${junit.out.dir.xml}" />
+        <mkdir  dir="${junit.out.dir.xml}" />
+        <junit printsummary="yes" haltonfailure="no" failureproperty="junit.failed">
+            <classpath refid="classpath.test"/>
+            <formatter type="xml"/>
+            <batchtest fork="yes" todir="${junit.out.dir.xml}">
+                <fileset dir="${test.java}" includes="**/*Test.java"/>
+            </batchtest>
+        </junit>
+    </target>
+
+    <target name="junitreport" description="Create a report for the rest result">
+        <mkdir dir="${junit.out.dir.html}" />
+        <junitreport todir="${junit.out.dir.html}">
+            <fileset dir="${junit.out.dir.xml}">
+                <include name="*.xml"/>
+            </fileset>
+            <report format="frames" todir="${junit.out.dir.html}"/>
+        </junitreport>
+    </target>
+
+    <target name="test"
+            depends="junit,junitreport"
+            description="Runs unit tests and creates a report">
+        <fail if="junit.failed">Test failed</fail>
+    </target>
+
+</project>
